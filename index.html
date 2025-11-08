@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Siege</title>
+
+<!-- Google Font -->
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg:#06080A;
+    --neon:#00ff88;
+    --accent:#4de0ff;
+    --muted:#9aa6a6;
+    --glass: rgba(255,255,255,0.03);
+  }
+
+  html,body{
+    height:100%;
+    margin:0;
+    background: radial-gradient(ellipse at center, #071018 0%, #020204 60%), var(--bg);
+    color:#cbeee0;
+    font-family: 'Share Tech Mono', monospace;
+    overflow:hidden;
+  }
+
+  /* canvas layers full screen */
+  canvas#matrix, canvas#particles { position: fixed; inset: 0; width:100%; height:100%; z-index:0; display:block; }
+
+  /* Main container */
+  .wrap{
+    position:relative;
+    z-index:2;
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    pointer-events:none;
+  }
+
+  .card{
+    pointer-events:auto;
+    width:min(920px,94vw);
+    max-width:1100px;
+    padding:36px;
+    border-radius:16px;
+    background: linear-gradient(180deg, rgba(12,14,16,0.6), rgba(6,8,10,0.45));
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 30px rgba(0,255,140,0.03) inset;
+    display:grid;
+    grid-template-columns: 160px 1fr;
+    gap:24px;
+    align-items:center;
+    backdrop-filter: blur(6px) saturate(1.1);
+    border: 1px solid rgba(0,255,136,0.06);
+  }
+
+  /* Avatar */
+  .avatar {
+    width:160px;
+    height:160px;
+    border-radius:50%;
+    overflow:hidden;
+    border:3px solid rgba(0,255,136,0.12);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: linear-gradient(135deg, rgba(0,255,136,0.04), rgba(77,224,255,0.02));
+    box-shadow: 0 8px 30px rgba(0,255,140,0.06), 0 0 18px rgba(77,224,255,0.03);
+  }
+  .avatar img {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    filter: contrast(1.02) saturate(1.08);
+  }
+
+  /* Title area */
+  .info{
+    padding:4px 10px;
+  }
+  .title-row{
+    display:flex;
+    align-items:flex-end;
+    gap:18px;
+    margin-bottom:6px;
+  }
+  h1{
+    font-family: 'Orbitron', sans-serif;
+    color:var(--neon);
+    margin:0;
+    font-size:44px;
+    letter-spacing:2px;
+    transform-origin:center;
+    display:inline-block;
+  }
+
+  /* glitch effect on Siege */
+  .hglitch{
+    position:relative;
+    display:inline-block;
+  }
+  .hglitch::before, .hglitch::after{
+    content: attr(data-text);
+    position:absolute;
+    left:0; top:0;
+    width:100%;
+    clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+    opacity:0.85;
+  }
+  .hglitch::before{
+    transform: translate(-2px,-1px);
+    color: rgba(77,224,255,0.9);
+    mix-blend-mode: screen;
+    animation: glitchTop 2.4s infinite linear;
+  }
+  .hglitch::after{
+    transform: translate(2px,1px);
+    color: rgba(0,255,136,0.85);
+    mix-blend-mode: screen;
+    animation: glitchBot 2.6s infinite linear;
+    clip-path: polygon(0 66%, 100% 66%, 100% 100%, 0 100%);
+  }
+
+  @keyframes glitchTop{
+    0%{ clip-path: polygon(0 0,100% 0,100% 20%,0 20%); transform:translate(-2px,-1px); }
+    25%{ clip-path: polygon(0 0,100% 0,100% 43%,0 43%); transform:translate(-6px,-4px); }
+    50%{ clip-path: polygon(0 0,100% 0,100% 12%,0 12%); transform:translate(-2px,-1px); }
+    75%{ clip-path: polygon(0 0,100% 0,100% 30%,0 30%); transform:translate(-8px,-3px); }
+    100%{ clip-path: polygon(0 0,100% 0,100% 20%,0 20%); transform:translate(-2px,-1px); }
+  }
+  @keyframes glitchBot{
+    0%{ clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%); transform:translate(2px,1px); }
+    25%{ clip-path: polygon(0 44%,100% 44%,100% 100%,0 100%); transform:translate(6px,4px); }
+    50%{ clip-path: polygon(0 70%,100% 70%,100% 100%,0 100%); transform:translate(3px,1px); }
+    75%{ clip-path: polygon(0 55%,100% 55%,100% 100%,0 100%); transform:translate(9px,3px); }
+    100%{ clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%); transform:translate(2px,1px); }
+  }
+
+  .tag{
+    font-size:14px;
+    color:var(--muted);
+    margin-bottom:8px;
+  }
+
+  .subtitle {
+    font-family: 'Share Tech Mono';
+    color:#9aeac0;
+    font-size:14px;
+    letter-spacing:1px;
+    height:22px; /* reserve for the typing text */
+    overflow:hidden;
+  }
+
+  /* stats / terminal style block */
+  .panel{
+    margin-top:12px;
+    display:flex;
+    gap:14px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .stat{
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:10px;
+    padding:10px 14px;
+    min-width:120px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+    border:1px solid rgba(77,224,255,0.04);
+    font-size:13px;
+    color:var(--muted);
+  }
+  .stat b{ color:var(--accent); display:block; font-family: 'Orbitron', sans-serif; font-weight:700; margin-bottom:6px; }
+
+  /* bottom area small commands */
+  .commands {
+    margin-top:18px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .btn {
+    background:transparent;
+    color:var(--neon);
+    border:1px solid rgba(0,255,136,0.12);
+    padding:8px 12px;
+    border-radius:8px;
+    font-size:13px;
+    cursor:pointer;
+    transition: all .18s ease;
+    text-transform:uppercase;
+    letter-spacing:1px;
+  }
+  .btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 26px rgba(0,255,136,0.06);
+    background: linear-gradient(90deg, rgba(0,255,136,0.03), rgba(77,224,255,0.02));
+  }
+
+  /* tiny footer in-card */
+  .meta {
+    text-align:right;
+    color:#6f8a86;
+    font-size:12px;
+    margin-top:8px;
+  }
+
+  /* small responsive */
+  @media (max-width:720px){
+    .card{ grid-template-columns: 120px 1fr; gap:12px; padding:22px; border-radius:12px; }
+    h1{ font-size:34px; }
+    .avatar{ width:120px; height:120px; }
+  }
+
+  /* neon cursor to the left */
+  .terminal-line{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    font-size:13px;
+  }
+  .cursor {
+    width:10px; height:16px;
+    background:linear-gradient(180deg,var(--neon),#a6ffcf);
+    border-radius:4px;
+    animation: blink 1.2s steps(2) infinite;
+  }
+  @keyframes blink{ 0%{opacity:1} 50%{opacity:0} 100%{opacity:1} }
+
+</style>
+</head>
+<body>
+
+<!-- canvas layers -->
+<canvas id="matrix"></canvas>
+<canvas id="particles"></canvas>
+
+<div class="wrap">
+  <div class="card" role="main">
+    <div class="avatar" title="Siege — Tradeans Cyber Group">
+      <!-- replace src with your image; fallback is a SVG stylized mask -->
+      <img src="seige.jpg" alt="Siege avatar">
+    </div>
+
+    <div class="info">
+      <div class="title-row">
+        <h1 class="hglitch" data-text="Siege">Siege</h1>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">ashley@root</div>
+      </div>
+
+      <div class="tag">Shadow operator · Cyber-collective leader · Zero-day curator</div>
+
+      <div class="subtitle" id="typed"></div>
+
+      <div class="panel">
+        <div class="stat">
+          <b>ROOT</b><span>Access level: GOD</span>
+        </div>
+        <div class="stat">
+          <b>NET</b><span>Nodes online: <span id="nodes">—</span></span>
+        </div>
+        <div class="stat">
+          <b>OPS</b><span>Uptime: <span id="uptime">—</span></span>
+        </div>
+      </div>
+
+      <div class="commands">
+        <button class="btn" onclick="quickCopy('siege@hackgods')">COPY HANDLE</button>
+        <button class="btn" onclick="simulate('scan')">RUN SCAN</button>
+        <button class="btn" onclick="simulate('breach')">SIMULATE</button>
+      </div>
+
+      <div class="meta">last beacon • <span id="beacon">—</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* -------------------------
+   Matrix rain canvas
+   ------------------------- */
+(function matrixRain(){
+  const canvas = document.getElementById('matrix');
+  const ctx = canvas.getContext('2d');
+  let w = canvas.width = innerWidth;
+  let h = canvas.height = innerHeight;
+  const cols = Math.floor(w/12);
+  const drops = new Array(cols).fill(1);
+
+  const letters = '01█▓▒░<>/\\@#$%&*?=+-';
+  function randChar(){ return letters.charAt(Math.floor(Math.random()*letters.length)); }
+
+  function draw(){
+    ctx.fillStyle = 'rgba(0,10,5,0.08)';
+    ctx.fillRect(0,0,w,h);
+
+    ctx.fillStyle = 'rgba(0,255,136,0.9)';
+    ctx.font = '12px "Share Tech Mono", monospace';
+
+    for (let i=0; i<drops.length; i++){
+      const text = randChar();
+      const x = i * 12;
+      const y = drops[i] * 12;
+      ctx.fillText(text, x, y);
+      if (y > h && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }
+
+  let raf;
+  function loop() {
+    draw();
+    raf = requestAnimationFrame(loop);
+  }
+  loop();
+
+  addEventListener('resize', () => {
+    cancelAnimationFrame(raf);
+    w = canvas.width = innerWidth;
+    h = canvas.height = innerHeight;
+  });
+})();
+
+/* -------------------------
+   Particles + connecting lines
+   ------------------------- */
+(function particlesNetwork(){
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let dpr = Math.max(1, devicePixelRatio || 1);
+  function fit(){
+    canvas.width = innerWidth * dpr;
+    canvas.height = innerHeight * dpr;
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+    ctx.scale(dpr, dpr);
+  }
+  fit();
+  addEventListener('resize', fit);
+
+  const particles = [];
+  const N = Math.floor((innerWidth*innerHeight)/90000) + 28; // density
+
+  for (let i=0;i<N;i++){
+    particles.push({
+      x: Math.random()*innerWidth,
+      y: Math.random()*innerHeight,
+      vx: (Math.random()-0.5)*0.4,
+      vy: (Math.random()-0.5)*0.4,
+      r: 1 + Math.random()*2
+    });
+  }
+
+  function step(){
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    // draw lines
+    for (let i=0;i<particles.length;i++){
+      for (let j=i+1;j<particles.length;j++){
+        const a=particles[i], b=particles[j];
+        const dx=a.x-b.x, dy=a.y-b.y;
+        const d2 = dx*dx + dy*dy;
+        const maxD = 120*120;
+        if (d2 < maxD){
+          const alpha = 0.12 * (1 - d2/maxD);
+          ctx.strokeStyle = `rgba(77,224,255,${alpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    // draw particles
+    for (let p of particles){
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0) p.x = innerWidth;
+      if (p.x > innerWidth) p.x = 0;
+      if (p.y < 0) p.y = innerHeight;
+      if (p.y > innerHeight) p.y = 0;
+
+      ctx.fillStyle = 'rgba(0,255,136,0.9)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+/* -------------------------
+   Tiny interactive / UI logic
+   ------------------------- */
+(function ui(){
+  const typedEl = document.getElementById('typed');
+  const beaconEl = document.getElementById('beacon');
+  const nodesEl = document.getElementById('nodes');
+  const uptimeEl = document.getElementById('uptime');
+
+  // simple typed intro
+  const lines = [
+    "initiating…",
+    "handshake: complete",
+    "glasnost protocol: engaged",
+    "welcome back, Siege."
+  ];
+  let li = 0, ci = 0;
+  function typeLine(){
+    if (li >= lines.length) return;
+    const str = lines[li];
+    typedEl.textContent = str.slice(0, ++ci);
+    if (ci === str.length){
+      li++; ci = 0;
+      setTimeout(typeLine, 900);
+    } else {
+      setTimeout(typeLine, 45 + Math.random()*40);
+    }
+  }
+  typeLine();
+
+  // fake stats
+  function randomStat(){
+    const nodes = 120 + Math.floor(Math.random()*620);
+    const uptime = `${Math.floor(Math.random()*99)}d ${Math.floor(Math.random()*24)}h`;
+    nodesEl.textContent = nodes;
+    uptimeEl.textContent = uptime;
+    beaconEl.textContent = new Date().toLocaleString();
+  }
+  randomStat();
+  setInterval(randomStat, 8000);
+
+  // button helpers
+  window.quickCopy = function(txt){
+    navigator.clipboard?.writeText(txt).then(()=> {
+      alert('Handle copied: ' + txt);
+    }).catch(()=> alert('Copy failed — manual: ' + txt));
+  };
+
+  window.simulate = function(mode){
+    const msg = mode === 'scan' ? 'Performing network scan…' : 'Simulating breach sequence…';
+    flash(msg);
+  };
+
+  function flash(txt){
+    const el = document.createElement('div');
+    el.style.position='fixed';
+    el.style.left='50%';
+    el.style.top='14%';
+    el.style.transform='translateX(-50%)';
+    el.style.padding='10px 16px';
+    el.style.borderRadius='8px';
+    el.style.background='rgba(0,0,0,0.7)';
+    el.style.color='#cbeee0';
+    el.style.border='1px solid rgba(77,224,255,0.06)';
+    el.style.zIndex = 9999;
+    el.style.fontFamily = 'Share Tech Mono';
+    el.textContent = txt;
+    document.body.appendChild(el);
+    setTimeout(()=> el.style.opacity = '0', 1800);
+    setTimeout(()=> el.remove(), 2500);
+  }
+})();
+
+/* -------------------------
+   Small accessibility note:
+   If you'd like to change the avatar, replace the <img> src with your own.
+   ------------------------- */
+</script>
+
+</body>
+</html>
